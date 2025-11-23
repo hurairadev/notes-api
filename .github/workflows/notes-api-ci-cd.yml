@@ -1,0 +1,55 @@
+name: Build, test, and deploy latest notes-api version
+
+on:
+  pull_request:
+    types: ["closed"]
+    branches: ["main"]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: 1234
+          POSTGRES_DB: notes
+        ports:
+          - 5432:5432
+        options: --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+     
+     - name: Checkout Repo
+       uses: actions/checkout@v4
+
+     - name: Setup Python
+       uses: actions/setup-python@v4
+       with:
+        python-version: '3.12'
+     
+     - name: Install Dependencies
+       run: |
+         python -m pip install --upgrade pip
+         pip install -r requirements.txt
+     
+     - name: Run migrations and tests
+       env:
+        POSTGRES_USERNAME=postgres
+        POSTGRES_PASSWORD=1234
+        POSTGRES_DB=notes
+        POSTGRES_HOST=localhost
+        POSTGRES_PORT=5432
+        REDIS_CACHE_LOCATION=redis://localhost:6379/0
+        JWT_SECRET_KEY="094cebc0387b8d183059b7de03f635ec2feb10181fc96b75c15f0cf8acd2a673278e4367630598aaf474e400033cb84efbbf07b5339f9b7301b2e0872b39200c8ed0c7e38ea8de6226b08c38fd33a01abc9fcc1cf2aa8fb455c7733caf1f0c3ea72be2453a06bade8fa0fb4d6f8f650e1be10d513e9cc08f34d2fbca397d6787eb8b41cdd9634b46beae2f298b416c120837dd5741eec215f198e588e4f5427d7f807722dd2cb8c4ab31465ba67679a7b576d651d24bb9e4a367be22db4903bbb26cfaf5e6f879f8259e53a45d27ad27c9efcfe661f46e2259b2545043f6f58cfe0b40c0ae3dab1304bf5d595cce33cae0674a791f9f68b45f4be336fe95a9a5"
+        JWT_ALGORITHM="HS256"
+       run: |
+         python manage.py migrate 
+         python manage.py test
